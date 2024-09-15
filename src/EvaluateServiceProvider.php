@@ -16,10 +16,6 @@ class EvaluateServiceProvider extends PackageServiceProvider
          * More info: https://github.com/spatie/laravel-package-tools
          */
         $package
-            ->name('evaluate')
-            ->hasConfigFile()
-            ->hasViews()
-            ->hasMigration('create_evaluate_table')
-            ->hasCommand(EvaluateCommand::class);
+            ->name('evaluate');
     }
 }
