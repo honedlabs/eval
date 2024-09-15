@@ -77,35 +77,35 @@ class Evaluate
     /**
      * The computed memory usage in MB
      * 
-     * @var float|null
+     * @var float|array<int, float>|null
      */
     protected $memory = null;
 
     /**
      * The computed execution time in ms
      * 
-     * @var float|null
+     * @var float|array<int, float>|null
      */
     protected $duration = null;
 
     /**
      * The number of properties
      * 
-     * @var int|null    
+     * @var array<int, int>|null
      */
     protected $properties = null;
 
     /**
      * The number of methods
      * 
-     * @var int|null
+     * @var array<int, int>|null
      */
     protected $methods = null;
 
     /**
      * The count of the number of items
      * 
-     * @var int|null
+     * @var array<int, int>|null
      */
     protected $count = null;
 
@@ -162,16 +162,19 @@ class Evaluate
             return;
         }
 
-        /** @var array<int, array<int|float>> */
-        $results = collect(Arr::wrap($this->evaluations))->map(fn ($evaluation) => 
+        /** @var Collection<int, Collection<int, array<string, int|float|null>>> $results */
+        $summary = collect(Arr::wrap($this->evaluations))->map(fn ($evaluation) => 
             collect(range(1, $this->times))->map(fn () => is_callable($evaluation) ? 
                 $this->evaluateCallable($evaluation) 
                 : $this->evaluateDataType($evaluation)
             )
         );
 
-        // Compute the averages for the array of results 
-        
+        dd($summary->collapse()
+            ->groupBy(fn ($value, $key) => $key)
+            // ->map(fn ($value) => $value->average())
+        );
+        // dd($summary->each(fn ($result) => dd($result)));
     }
 
     /**
@@ -183,7 +186,7 @@ class Evaluate
     {
         // Use peak memory to be measure of the application as
         // it indicates the worst case memory usage
-        $this->memory = round(memory_get_peak_usage() / (1024 * 1024), 2);
+        $this->memory = $this->formatMemory(memory_get_peak_usage(true));
 
         // The start of the application uses the application time which is in microseconds
         // we need to convert this from microseconds to milliseconds to align with the other metrics
@@ -194,20 +197,32 @@ class Evaluate
      * Evaluate the performance of a given callable
      * 
      * @internal
-     * @return array<int, int|float>
+     * @return array<string, int|float>
      */
     protected function evaluateCallable($evaluation)
     {
         gc_collect_cycles();
+        
+        // Reset the peak memory usage to zero in case a previous evaluation has left it high
+        memory_reset_peak_usage();
+        $startMemory = memory_get_peak_usage(true);
+
+        // Disable garbage collection to prevent freeing during function execution
+        gc_disable();
+
+        // Couple timer
         $startTime = hrtime(true);
-        $startingMemory = $this->computeMemory();
         $evaluation();
-        $memory = $this->computeMemory() - $startingMemory;
         $duration = $this->getDuration($startTime);
 
+        // Get the memory usage
+        $consumedMemory = memory_get_peak_usage(true);
+        
+        gc_enable();
+
         return [
-            $memory,
-            $duration,
+            'memory' => $this->formatMemory($consumedMemory - $startMemory),
+            'duration' => $duration,
         ];
     }
 
@@ -215,75 +230,72 @@ class Evaluate
      * Evaluate the memory, time, properties, methods and count of a given data type
      * 
      * @internal
-     * @return array<int, int|float>
+     * @return array<string, int|float>
      */
     protected function evaluateDataType($evaluation)
     {
         gc_collect_cycles();
 
         // Timing is done in nanoseconds
-        $startTime = hrtime(true);
-        $startingMemory = $this->computeMemory();
+        $startMemory = memory_get_usage(true);
 
+        // Couple timer 
+        $startTime = hrtime(true);
         // Must mutate the object to create new memory allocation
         $tmp = json_decode(json_encode($evaluation));
+        $duration = $this->getDuration($startTime);
 
         // This does not include the memory allocated to the variable
         // This is assumed redundant as we are only concerned with memory
         // allocations in the mega bytes range
-        $memory = $this->computeMemory() - $startingMemory;
-        $duration = $this->getDuration($startTime);
+        $consumedMemory = memory_get_usage(true);
 
-        $properties = $methods = $count = null;
-
-        if (is_object($evaluation)) {
-            [$properties, $methods] = $this->evaluateReflection($tmp);
-        }
-
-        if (is_array($evaluation) || $evaluation instanceof Traversable) {
-            $count = count($evaluation);
-        }
-
-        return [
-            $memory,
-            $duration,
-            $properties,
-            $methods,
-            $count,
+        $reflection = is_object($evaluation) ? $this->evaluateReflection($tmp) : [
+            'properties' => null,
+            'methods' => null,
         ];
+
+        $count = is_array($evaluation) || $evaluation instanceof Traversable ? count($evaluation) : null;
+
+        return array_merge([
+            'memory' => $this->formatMemory($consumedMemory - $startMemory),
+            'duration' => $duration,
+            'count' => $count,
+        ], $reflection);
     }
 
     /**
      * Evaluate the 
      * @internal
      * @param object|array $evaluation
-     * @return array<int, int>
+     * @return array<string, int>
      */
     protected function evaluateReflection($evaluation)
     {
         $reflection = new ReflectionClass($evaluation);
-        $properties = count($reflection->getProperties());
-        $methods = count($reflection->getMethods());
 
         return [
-            $properties,
-            $methods,
+            'properties' => count($reflection->getProperties()),
+            'methods' => count($reflection->getMethods()),
         ];
     }
 
     /**
      * Get the memory usage of the evaluation in MB
      * 
+     * @internal
+     * @param int $memory in bytes
      * @return float
      */
-    protected function computeMemory()
+    protected function formatMemory($memory)
     {
-        return round(memory_get_usage() / (1024 * 1024), 2);
+        return round($memory / (1024 * 1024), 2);
     }
 
     /**
      * Get the duration of the evaluation in milliseconds
      * 
+     * @internal
      * @param float $startTime in nanoseconds
      * @return float
      */
