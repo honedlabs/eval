@@ -4,7 +4,8 @@ use Conquest\Evaluate\Evaluate;
 
 it('evaluates a callable', function () {
     dd(
-        Evaluate::new(fn () => range(1, 10000000))
+        // Evaluate::new()->dd()
+        Evaluate::dd(fn () => range(1, 10000000))
     );
 });
 

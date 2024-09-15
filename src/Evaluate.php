@@ -5,9 +5,20 @@ namespace Conquest\Evaluate;
 use Closure;
 use Traversable;
 use ReflectionClass;
+use BadMethodCallException;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Conquest\Core\Concerns\HasName;
+use Illuminate\Support\Facades\Log;
 
+/**
+ * @method static self dd(array|Closure|object|array[] $evaluations, int $metrics = self::Basic, string|null $name = null, int $times = 5)
+ * @method static self log(array|Closure|object|array[] $evaluations, int $metrics = self::Basic, string|null $name = null, int $times = 5)
+ * @method static self dump(array|Closure|object|array[] $evaluations, int $metrics = self::Basic, string|null $name = null, int $times = 5)
+ * @method self dd(array|Closure|object|array[] $evaluations, int $metrics = self::Basic, string|null $name = null, int $times = 5)
+ * @method self log(array|Closure|object|array[] $evaluations, int $metrics = self::Basic, string|null $name = null, int $times = 5)
+ * @method self dump(array|Closure|object|array[] $evaluations, int $metrics = self::Basic, string|null $name = null, int $times = 5)
+ */
 class Evaluate 
 {
     use HasName;
@@ -123,8 +134,6 @@ class Evaluate
         $this->metrics = $metrics;
         $this->name = $name;
         $this->times = $times;
-
-        $this->evaluate();
     }
 
     /**
@@ -135,20 +144,69 @@ class Evaluate
      * @param string|null $name
      * @param int $times
      */
-    public static function new($evaluations = [], $metrics = self::Basic, $name = null, $times = 5)
+    public static function measure($evaluations = [], $metrics = self::Basic, $name = null, $times = 5)
     {
         return resolve(static::class, compact('evaluations', 'metrics', 'name', 'times'));
     }
 
-    // public static function measure(Closure|array $benchmarkables, int $iterations = 1)
-    // public static function measure(mixed $evaluations)
-    // public static function dd
-    // public static function log()
-    // public static function dump()
-    // public static function cost()
-    // public static function memory()
-    // public static function time()
-    // public static function class() -> use reflection to compute number of properties and methods
+    public function __call($name, $arguments)
+    {
+        return $this->handle($name);
+    }
+
+    public static function __callStatic($name, $arguments)
+    {
+        $evaluator = static::measure(...$arguments);
+        return $evaluator->handle($name);
+    }
+
+    /**
+     * Handle the evaluation results
+     * 
+     * @internal
+     */
+    protected function handle($name)
+    {
+        return match ($name) {
+            'dd' => $this->__dd(),
+            'log' => $this->__log(),
+            'dump' => $this->__dump(),
+            default => throw new BadMethodCallException("Method {$name} does not exist."),
+        };
+    }
+
+    /**
+     * Die and dump the evaluation results
+     * 
+     * @internal
+     */
+    protected function __dd()
+    {
+        $this->evaluate();
+        dd($this->print());
+    }
+
+    /**
+     * Log the evaluation results
+     * 
+     * @internal
+     */
+    protected function __log()
+    {
+        $this->evaluate();
+        Log::info($this->print());
+    }
+    
+    /**
+     * Dump the evaluation results
+     * 
+     * @internal
+     */
+    protected function __dump()
+    {
+        $this->evaluate();
+        dump($this->print());
+    }
 
     /**
      * Evaluate the performance of the provided evaluations
@@ -162,19 +220,32 @@ class Evaluate
             return;
         }
 
-        /** @var Collection<int, Collection<int, array<string, int|float|null>>> $results */
-        $summary = collect(Arr::wrap($this->evaluations))->map(fn ($evaluation) => 
+        collect(Arr::wrap($this->evaluations))->map(fn ($evaluation) => 
             collect(range(1, $this->times))->map(fn () => is_callable($evaluation) ? 
                 $this->evaluateCallable($evaluation) 
                 : $this->evaluateDataType($evaluation)
             )
-        );
+        )->map(function (Collection $eval) {
+            $summed = $eval->reduce(function ($carry, $item) {
+                foreach ($item as $key => $value) {
+                    if (is_null($value)) {
+                    $carry[$key] = null;
+                    continue;
+                }
+                if (!isset($carry[$key])) {
+                    $carry[$key] = 0;
+                }
+                $carry[$key] += $value;
+                }
+                return $carry;
+            }, []);
 
-        dd($summary->collapse()
-            ->groupBy(fn ($value, $key) => $key)
-            // ->map(fn ($value) => $value->average())
-        );
-        // dd($summary->each(fn ($result) => dd($result)));
+            return array_map(fn ($value) => is_null($value) ? null : $value / $this->times, $summed);
+        })->each(function (array $result) {
+            foreach ($result as $key => $value) {
+                $this->{$key} = $value;
+            }
+        });
     }
 
     /**
@@ -310,9 +381,17 @@ class Evaluate
      * @internal
      * @return string
      */
-    protected function print($results)
+    protected function print()
     {
-        //
+        return collect([
+            sprintf('%s', $this->hasName() ? 'Evaluation for '.$this->name : 'Evaluation'),
+            '----------------------------------------',
+            sprintf('Memory Usage: %s', $this->memory),
+            sprintf('Execution Time: %s', $this->duration),
+            sprintf('Execution Cost: %s', $this->memory * $this->duration),
+            sprintf('Class Properties: %s', $this->properties),
+            sprintf('Class Methods: %s', $this->methods),
+            sprintf('Count: %s', $this->count),
+        ])->implode(PHP_EOL);
     }
-
 }
