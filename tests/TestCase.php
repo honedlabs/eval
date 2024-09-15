@@ -6,6 +6,10 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 use Orchestra\Testbench\TestCase as Orchestra;
 use Conquest\Evaluate\EvaluateServiceProvider;
 
+if (!defined('LARAVEL_START')) {
+    define('LARAVEL_START', microtime(true));
+}
+
 class TestCase extends Orchestra
 {
     protected function setUp(): void

@@ -3,6 +3,8 @@
 namespace Conquest\Evaluate;
 
 use Closure;
+use Traversable;
+use ReflectionClass;
 use Illuminate\Support\Arr;
 use Conquest\Core\Concerns\HasName;
 
@@ -55,7 +57,7 @@ class Evaluate
     /**
      * Code to be benchmarked
      * 
-     * @var array<int, mixed>
+     * @var array<int, \Closure|object|array|callable>
      */
     protected $evaluations = [];
 
@@ -73,38 +75,69 @@ class Evaluate
     protected $times = 5;
 
     /**
-     * Whether to display the peak memory usage
-     * 
-     * @var boolean
-     */
-    protected $peak = true;
-
-    /**
-     * The computed memory usage
+     * The computed memory usage in MB
      * 
      * @var float|null
      */
     protected $memory = null;
 
     /**
-     * The computed execution time
+     * The computed execution time in ms
      * 
      * @var float|null
      */
     protected $duration = null;
 
-    public function __construct(mixed $evaluations = [], $metrics = self::Basic, $name = null, $times = 5, $peak = true)
+    /**
+     * The number of properties
+     * 
+     * @var int|null    
+     */
+    protected $properties = null;
+
+    /**
+     * The number of methods
+     * 
+     * @var int|null
+     */
+    protected $methods = null;
+
+    /**
+     * The count of the number of items
+     * 
+     * @var int|null
+     */
+    protected $count = null;
+
+    /**
+     * Create a new evaluation instance
+     * 
+     * @param array<int, \Closure|object|array|callable> $evaluations
+     * @param int $metrics
+     * @param string|null $name
+     * @param int $times
+     */
+    public function __construct($evaluations = [], $metrics = self::Basic, $name = null, $times = 5)
     {
         $this->evaluations = $evaluations;
         $this->metrics = $metrics;
         $this->name = $name;
         $this->times = $times;
-        $this->peak = $peak;
+
+        $this->evaluate();
     }
 
-    public static function new()
+    /**
+     * Create a new evaluation instance
+     * 
+     * @param array<int, \Closure|object|array|callable> $evaluations
+     * @param int $metrics
+     * @param string|null $name
+     * @param int $times
+     */
+    public static function new($evaluations = [], $metrics = self::Basic, $name = null, $times = 5)
     {
-        return resolve(static::class);
+        return resolve(static::class, compact('evaluations', 'metrics', 'name', 'times'));
     }
 
     // public static function measure(Closure|array $benchmarkables, int $iterations = 1)
@@ -118,50 +151,134 @@ class Evaluate
     // public static function class() -> use reflection to compute number of properties and methods
 
     /**
+     * Evaluate the performance of the provided evaluations
+     * 
      * @internal
      */
-    protected function evaluate(Closure|array $benchmarkables, int $iterations = 1): array|float
+    protected function evaluate()
     {
-        return collect(Arr::wrap($benchmarkables))->map(function ($callback) use ($iterations) {
-            return collect(range(1, $iterations))->map(function () use ($callback) {
-                gc_collect_cycles();
+        if (empty($this->evaluations)) {
+            $this->evaluateApplication();
+            return;
+        }
 
-                $start = hrtime(true);
+        /** @var array<int, array<int|float>> */
+        $results = collect(Arr::wrap($this->evaluations))->map(fn ($evaluation) => 
+            collect(range(1, $this->times))->map(fn () => is_callable($evaluation) ? 
+                $this->evaluateCallable($evaluation) 
+                : $this->evaluateDataType($evaluation)
+            )
+        );
 
-                $callback();
+        // Compute 
 
-                return (hrtime(true) - $start) / 1000000;
-            })->average();
-        });
+        dd($results);
     }
-
-    public function __destruct()
-    {
-        return $this->print();
-    }
-    // public function count(iterable $iterable): int
-    // {
-    //     return count($iterable);
-    // }
 
     /**
+     * Evaluate the performance of the application
      * 
+     * @internal
      */
-    protected function getMemory($evaluation)
+    protected function evaluateApplication()
     {
-        return $this->memory ??= $this->computeMemory($evaluation);
+        $this->memory = $this->getMemory();
+        // The start of the application uses the application time which is in microseconds
+        // we need to convert this from microseconds to milliseconds to align with the other metrics
+        $this->duration = round((microtime(true) - LARAVEL_START) * 1e3, 3);
     }
 
-    protected function computeMemory($evaluation)
+    /**
+     * Evaluate the performance of a given callable
+     * 
+     * @internal
+     * @return array<int, int|float>
+     */
+    protected function evaluateCallable($evaluation)
     {
-        return memory_get_usage(true);
+        gc_collect_cycles();
+        $startingMemory = $this->getMemory();
+        $startTime = hrtime(true);
+
+        $evaluation();
+
+        $memory = $this->getMemory() - $startingMemory;
+        $duration = $this->getDuration($startTime);
+
+        return [
+            $memory,
+            $duration,
+        ];
     }
 
-    protected function print()
+    /**
+     * Evaluate the memory, time, properties, methods and count of a given data type
+     * 
+     * @internal
+     * @return array<int, int|float>
+     */
+    protected function evaluateDataType($evaluation)
     {
-        return '';
+        gc_collect_cycles();
+        $startingMemory = $this->getMemory();
+        $startTime = hrtime(true);
 
+        $copy = clone $evaluation;
+
+        $memory = $this->getMemory() - $startingMemory;
+        $duration = $this->getDuration($startTime);
+
+        // Compute the number of properties, methods, traits, count (if traversable)
+        [$properties, $methods, $count] = $this->evaluateReflection($copy);
+
+        return [
+            $memory,
+            $duration,
+            $properties,
+            $methods,
+            $count,
+        ];
     }
 
+    /**
+     * Evaluate the 
+     * @internal
+     * @param object|array $evaluation
+     * @return array<int, int>
+     */
+    protected function evaluateReflection($evaluation)
+    {
+        $reflection = new ReflectionClass($evaluation);
+        $properties = count($reflection->getProperties());
+        $methods = count($reflection->getMethods());
 
+        if (is_array($evaluation) || $evaluation instanceof Traversable) {
+            $count = count($evaluation);
+        }
+
+        return [
+            $properties,
+            $methods,
+            $count,
+        ];
+    }
+
+    /**
+     * @return float
+     */
+    protected function getMemory()
+    {
+        return round(memory_get_peak_usage() / (1024 * 1024), 2);
+    }
+
+    /**
+     * Get the duration of the evaluation in milliseconds
+     * 
+     * @param float $startTime in nanoseconds
+     * @return float
+     */
+    protected function getDuration($startTime)
+    {
+        return round((hrtime(true) - $startTime) / 1e6, 3);
+    }
 }
