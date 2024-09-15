@@ -4,7 +4,6 @@ namespace Conquest\Evaluate;
 
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
-use Conquest\Evaluate\Commands\EvaluateCommand;
 
 class EvaluateServiceProvider extends PackageServiceProvider
 {

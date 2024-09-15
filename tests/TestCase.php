@@ -2,11 +2,11 @@
 
 namespace Conquest\Evaluate\Tests;
 
+use Conquest\Evaluate\EvaluateServiceProvider;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Orchestra\Testbench\TestCase as Orchestra;
-use Conquest\Evaluate\EvaluateServiceProvider;
 
-if (!defined('LARAVEL_START')) {
+if (! defined('LARAVEL_START')) {
     define('LARAVEL_START', microtime(true));
 }
 

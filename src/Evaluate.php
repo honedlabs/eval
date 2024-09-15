@@ -3,119 +3,120 @@
 namespace Conquest\Evaluate;
 
 use Closure;
-use Traversable;
-use ReflectionClass;
-use Illuminate\Support\Arr;
 use Conquest\Core\Concerns\HasName;
+use Illuminate\Support\Arr;
+use ReflectionClass;
+use Traversable;
 
-class Evaluate 
+class Evaluate
 {
     use HasName;
 
     /**
      * Display memory consumption
-     * 
+     *
      * @var int
      */
     const Memory = 1;
 
     /**
      * Display execution time
-     * 
+     *
      * @var int
      */
     const Time = 2;
 
     /**
      * Display execution cost
-     * 
+     *
      * @var int
      */
     const Cost = 4;
 
     /**
      * Display class properties and methods count
-     * 
+     *
      * @var int
      */
     const Object = 8;
 
     /**
      * Display basic metrics
-     * 
+     *
      * @var int
      */
     const Basic = self::Memory | self::Time | self::Cost;
 
     /**
      * Display all metrics
-     * 
+     *
      * @var int
      */
     const All = self::Memory | self::Time | self::Cost | self::Object;
 
     /**
      * Code to be benchmarked
-     * 
+     *
      * @var array<int, \Closure|object|array|callable>
      */
     protected $evaluations = [];
 
     /**
      * The metrics to be used for this evaluation
+     *
      * @var int
      */
     protected $metrics = self::Memory | self::Time | self::Cost;
 
     /**
      * Number of times to execute the evaluation
-     * 
+     *
      * @var int
      */
     protected $times = 5;
 
     /**
      * The computed memory usage in MB
-     * 
+     *
      * @var float|null
      */
     protected $memory = null;
 
     /**
      * The computed execution time in ms
-     * 
+     *
      * @var float|null
      */
     protected $duration = null;
 
     /**
      * The number of properties
-     * 
-     * @var int|null    
+     *
+     * @var int|null
      */
     protected $properties = null;
 
     /**
      * The number of methods
-     * 
+     *
      * @var int|null
      */
     protected $methods = null;
 
     /**
      * The count of the number of items
-     * 
+     *
      * @var int|null
      */
     protected $count = null;
 
     /**
      * Create a new evaluation instance
-     * 
-     * @param array<int, \Closure|object|array|callable> $evaluations
-     * @param int $metrics
-     * @param string|null $name
-     * @param int $times
+     *
+     * @param  array<int, \Closure|object|array|callable>  $evaluations
+     * @param  int  $metrics
+     * @param  string|null  $name
+     * @param  int  $times
      */
     public function __construct($evaluations = [], $metrics = self::Basic, $name = null, $times = 5)
     {
@@ -129,11 +130,11 @@ class Evaluate
 
     /**
      * Create a new evaluation instance
-     * 
-     * @param array<int, \Closure|object|array|callable> $evaluations
-     * @param int $metrics
-     * @param string|null $name
-     * @param int $times
+     *
+     * @param  array<int, \Closure|object|array|callable>  $evaluations
+     * @param  int  $metrics
+     * @param  string|null  $name
+     * @param  int  $times
      */
     public static function new($evaluations = [], $metrics = self::Basic, $name = null, $times = 5)
     {
@@ -152,31 +153,31 @@ class Evaluate
 
     /**
      * Evaluate the performance of the provided evaluations
-     * 
+     *
      * @internal
      */
     protected function evaluate()
     {
         if (empty($this->evaluations)) {
             $this->evaluateApplication();
+
             return;
         }
 
         /** @var array<int, array<int|float>> */
-        $results = collect(Arr::wrap($this->evaluations))->map(fn ($evaluation) => 
-            collect(range(1, $this->times))->map(fn () => is_callable($evaluation) ? 
-                $this->evaluateCallable($evaluation) 
+        $results = collect(Arr::wrap($this->evaluations))->map(fn ($evaluation) => collect(range(1, $this->times))->map(fn () => is_callable($evaluation) ?
+                $this->evaluateCallable($evaluation)
                 : $this->evaluateDataType($evaluation)
-            )
+        )
         );
 
-        // Compute the averages for the array of results 
-        
+        // Compute the averages for the array of results
+
     }
 
     /**
      * Evaluate the performance of the application
-     * 
+     *
      * @internal
      */
     protected function evaluateApplication()
@@ -192,8 +193,9 @@ class Evaluate
 
     /**
      * Evaluate the performance of a given callable
-     * 
+     *
      * @internal
+     *
      * @return array<int, int|float>
      */
     protected function evaluateCallable($evaluation)
@@ -213,8 +215,9 @@ class Evaluate
 
     /**
      * Evaluate the memory, time, properties, methods and count of a given data type
-     * 
+     *
      * @internal
+     *
      * @return array<int, int|float>
      */
     protected function evaluateDataType($evaluation)
@@ -254,9 +257,11 @@ class Evaluate
     }
 
     /**
-     * Evaluate the 
+     * Evaluate the
+     *
      * @internal
-     * @param object|array $evaluation
+     *
+     * @param  object|array  $evaluation
      * @return array<int, int>
      */
     protected function evaluateReflection($evaluation)
@@ -273,7 +278,7 @@ class Evaluate
 
     /**
      * Get the memory usage of the evaluation in MB
-     * 
+     *
      * @return float
      */
     protected function computeMemory()
@@ -283,8 +288,8 @@ class Evaluate
 
     /**
      * Get the duration of the evaluation in milliseconds
-     * 
-     * @param float $startTime in nanoseconds
+     *
+     * @param  float  $startTime  in nanoseconds
      * @return float
      */
     protected function getDuration($startTime)
@@ -294,13 +299,13 @@ class Evaluate
 
     /**
      * Formatting of the table results
-     * 
+     *
      * @internal
+     *
      * @return string
      */
     protected function print($results)
     {
         //
     }
-
 }
