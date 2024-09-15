@@ -170,9 +170,8 @@ class Evaluate
             )
         );
 
-        // Compute 
-
-        dd($results);
+        // Compute the averages for the array of results 
+        
     }
 
     /**
@@ -182,7 +181,10 @@ class Evaluate
      */
     protected function evaluateApplication()
     {
-        $this->memory = $this->getMemory();
+        // Use peak memory to be measure of the application as
+        // it indicates the worst case memory usage
+        $this->memory = round(memory_get_peak_usage() / (1024 * 1024), 2);
+
         // The start of the application uses the application time which is in microseconds
         // we need to convert this from microseconds to milliseconds to align with the other metrics
         $this->duration = round((microtime(true) - LARAVEL_START) * 1e3, 3);
@@ -197,12 +199,10 @@ class Evaluate
     protected function evaluateCallable($evaluation)
     {
         gc_collect_cycles();
-        $startingMemory = $this->getMemory();
         $startTime = hrtime(true);
-
+        $startingMemory = $this->computeMemory();
         $evaluation();
-
-        $memory = $this->getMemory() - $startingMemory;
+        $memory = $this->computeMemory() - $startingMemory;
         $duration = $this->getDuration($startTime);
 
         return [
@@ -220,16 +220,29 @@ class Evaluate
     protected function evaluateDataType($evaluation)
     {
         gc_collect_cycles();
-        $startingMemory = $this->getMemory();
+
+        // Timing is done in nanoseconds
         $startTime = hrtime(true);
+        $startingMemory = $this->computeMemory();
 
-        $copy = clone $evaluation;
+        // Must mutate the object to create new memory allocation
+        $tmp = json_decode(json_encode($evaluation));
 
-        $memory = $this->getMemory() - $startingMemory;
+        // This does not include the memory allocated to the variable
+        // This is assumed redundant as we are only concerned with memory
+        // allocations in the mega bytes range
+        $memory = $this->computeMemory() - $startingMemory;
         $duration = $this->getDuration($startTime);
 
-        // Compute the number of properties, methods, traits, count (if traversable)
-        [$properties, $methods, $count] = $this->evaluateReflection($copy);
+        $properties = $methods = $count = null;
+
+        if (is_object($evaluation)) {
+            [$properties, $methods] = $this->evaluateReflection($tmp);
+        }
+
+        if (is_array($evaluation) || $evaluation instanceof Traversable) {
+            $count = count($evaluation);
+        }
 
         return [
             $memory,
@@ -252,23 +265,20 @@ class Evaluate
         $properties = count($reflection->getProperties());
         $methods = count($reflection->getMethods());
 
-        if (is_array($evaluation) || $evaluation instanceof Traversable) {
-            $count = count($evaluation);
-        }
-
         return [
             $properties,
             $methods,
-            $count,
         ];
     }
 
     /**
+     * Get the memory usage of the evaluation in MB
+     * 
      * @return float
      */
-    protected function getMemory()
+    protected function computeMemory()
     {
-        return round(memory_get_peak_usage() / (1024 * 1024), 2);
+        return round(memory_get_usage() / (1024 * 1024), 2);
     }
 
     /**
@@ -281,4 +291,16 @@ class Evaluate
     {
         return round((hrtime(true) - $startTime) / 1e6, 3);
     }
+
+    /**
+     * Formatting of the table results
+     * 
+     * @internal
+     * @return string
+     */
+    protected function print($results)
+    {
+        //
+    }
+
 }
