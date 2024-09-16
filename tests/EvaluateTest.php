@@ -2,30 +2,56 @@
 
 use Conquest\Evaluate\Evaluate;
 
-it('evaluates a callable', function () {
-    dd(
-        // Evaluate::new()->dd()
-        Evaluate::dd(fn () => range(1, 10000000))
-    );
+it('evaluates the application', function () {
+    $evaluation = Evaluate::measure()->terminate();
+    expect($evaluation->getMemory())->toBeFloat();
+    expect($evaluation->getDuration())->toBeFloat();
+    expect($evaluation->getCost())->toBeFloat();
+    expect($evaluation->getCount())->toBeNull();
+    expect($evaluation->getProperties())->toBeNull();
+    expect($evaluation->getMethods())->toBeNull();
 });
 
-// it('calculates metrics for an object', function () {
-//     $object = new class {
-//         public array $range;
-//         public function __construct()
-//         {
-//             $this->range = range(1, 10000000);
-//         }
-//     };
-//     dd(Evaluate::new($object));
-// });
+it('evaluates an object', function () {
+    $object = new class {
+        public array $range;
+        public function __construct()
+        {
+            $this->range = range(1, 10);
+        }
 
-// it('calculates metrics for a array', function () {
-//     $primitive = range(1, 1000000);
-//     dd(Evaluate::new([$primitive]));
-// });
+        public function getRange(): array
+        {
+            return $this->range;
+        }
+    };
+    $evaluation = Evaluate::measure($object)->terminate();
+    expect($evaluation->getMemory())->toBeFloat();
+    expect($evaluation->getDuration())->toBeFloat();
+    expect($evaluation->getCost())->toBeFloat();
+    expect($evaluation->getCount())->toBeNull();
+    expect($evaluation->getProperties())->toBe(1);
+    expect($evaluation->getMethods())->toBe(1);
+});
 
-// it('calculates metrics for a primitive', function () {
-//     $primitive = 1;
-//     dd(Evaluate::new($primitive));
-// });
+it('evaluates an array', function () {
+    $arr = range(1, 100);
+    $evaluation = Evaluate::measure($arr)->terminate();
+    expect($evaluation->getMemory())->toBeFloat();
+    expect($evaluation->getDuration())->toBeFloat();
+    expect($evaluation->getCost())->toBeFloat();
+    expect($evaluation->getCount())->toBe(100);
+    expect($evaluation->getProperties())->toBeNull();
+    expect($evaluation->getMethods())->toBeNull();
+});
+
+it('evaluates a string', function () {
+    $primitive = 'Hello, World!';
+    $evaluation = Evaluate::measure($primitive)->terminate();
+    expect($evaluation->getMemory())->toBeFloat();
+    expect($evaluation->getDuration())->toBeFloat();
+    expect($evaluation->getCost())->toBeFloat();
+    expect($evaluation->getCount())->toBeNull();
+    expect($evaluation->getProperties())->toBeNull();
+    expect($evaluation->getMethods())->toBeNull();
+});

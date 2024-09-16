@@ -12,12 +12,14 @@ use Conquest\Core\Concerns\HasName;
 use Illuminate\Support\Facades\Log;
 
 /**
- * @method static self dd(array|Closure|object|array[] $evaluations, int $metrics = self::Basic, string|null $name = null, int $times = 5)
- * @method static self log(array|Closure|object|array[] $evaluations, int $metrics = self::Basic, string|null $name = null, int $times = 5)
- * @method static self dump(array|Closure|object|array[] $evaluations, int $metrics = self::Basic, string|null $name = null, int $times = 5)
- * @method self dd(array|Closure|object|array[] $evaluations, int $metrics = self::Basic, string|null $name = null, int $times = 5)
- * @method self log(array|Closure|object|array[] $evaluations, int $metrics = self::Basic, string|null $name = null, int $times = 5)
- * @method self dump(array|Closure|object|array[] $evaluations, int $metrics = self::Basic, string|null $name = null, int $times = 5)
+ * Measure the performance of your code.
+ * 
+ * @method static void dd(array|Closure|object|array[] $evaluations, int $metrics = self::Basic, string|null $name = null, int $times = 5)
+ * @method static void log(array|Closure|object|array[] $evaluations, int $metrics = self::Basic, string|null $name = null, int $times = 5)
+ * @method static void dump(array|Closure|object|array[] $evaluations, int $metrics = self::Basic, string|null $name = null, int $times = 5)
+ * @method void dd(array|Closure|object|array[] $evaluations, int $metrics = self::Basic, string|null $name = null, int $times = 5)
+ * @method void log(array|Closure|object|array[] $evaluations, int $metrics = self::Basic, string|null $name = null, int $times = 5)
+ * @method void dump(array|Closure|object|array[] $evaluations, int $metrics = self::Basic, string|null $name = null, int $times = 5)
  */
 class Evaluate 
 {
@@ -74,6 +76,7 @@ class Evaluate
 
     /**
      * The metrics to be used for this evaluation
+     * 
      * @var int
      */
     protected $metrics = self::Memory | self::Time | self::Cost;
@@ -121,6 +124,13 @@ class Evaluate
     protected $count = null;
 
     /**
+     * Whether the case has had a terminating method called
+     * 
+     * @var bool
+     */
+    protected $terminated = false;
+
+    /**
      * Create a new evaluation instance
      * 
      * @param array<int, \Closure|object|array|callable> $evaluations
@@ -149,11 +159,52 @@ class Evaluate
         return resolve(static::class, compact('evaluations', 'metrics', 'name', 'times'));
     }
 
+    /**
+     * Set the number of times to execute the evaluation
+     * 
+     * @param int $times
+     * @return $this
+     */
+    public function times(int $times)
+    {
+        $this->times = $times;
+        return $this;
+    }
+
+    /**
+     * Set the metrics to be used for this evaluation
+     * 
+     * @param int $metrics
+     * @return $this
+     */
+    public function metrics(int $metrics)
+    {
+        $this->metrics = $metrics;
+    }
+
+    /**
+     * @internal
+     */
     public function __call($name, $arguments)
     {
         return $this->handle($name);
     }
 
+    /**
+     * Ensure that the results are printed when destructing if not already terminated
+     * 
+     * @internal
+     */
+    public function __destruct()
+    {
+        if (!$this->terminated) {
+            dd($this->print());
+        }
+    }
+
+    /**
+     * @internal
+     */
     public static function __callStatic($name, $arguments)
     {
         $evaluator = static::measure(...$arguments);
@@ -163,49 +214,98 @@ class Evaluate
     /**
      * Handle the evaluation results
      * 
+     * @param string $name
      * @internal
      */
     protected function handle($name)
     {
+        $this->terminate();
+
         return match ($name) {
-            'dd' => $this->__dd(),
-            'log' => $this->__log(),
-            'dump' => $this->__dump(),
+            'dd' => dd($this->print()),
+            'log' => Log::info($this->print()),
+            'dump' => dump($this->print()),
             default => throw new BadMethodCallException("Method {$name} does not exist."),
         };
     }
 
     /**
-     * Die and dump the evaluation results
+     * Forcefully terminate the evaluation, reserved for testing purposes generally
      * 
      * @internal
+     * @return $this
      */
-    protected function __dd()
+    public function terminate()
     {
         $this->evaluate();
-        dd($this->print());
+        $this->terminated = true;
+        return $this;
     }
 
     /**
-     * Log the evaluation results
+     * Get the memory usage(s) of the evaluation
      * 
      * @internal
+     * @return array<int|float>|int|float|null
      */
-    protected function __log()
+    public function getMemory()
     {
-        $this->evaluate();
-        Log::info($this->print());
+        return $this->memory;
     }
-    
+
     /**
-     * Dump the evaluation results
+     * Get the execution time(s) of the evaluation
      * 
      * @internal
+     * @return array<int|float>|int|float|null
      */
-    protected function __dump()
+    public function getDuration()
     {
-        $this->evaluate();
-        dump($this->print());
+        return $this->duration;
+    }
+
+    /**
+     * Get the execution cost of the evaluation
+     * 
+     * @internal
+     * @return array<int|float>|int|float|null
+     */
+    public function getCost()
+    {
+        return round(($this->memory * $this->duration) / 1e3, 3);
+    }
+
+    /**
+     * Get the count of the evaluation
+     * 
+     * @internal
+     * @return array<int>|int|null
+     */
+    public function getCount()
+    {
+        return $this->count;
+    }
+
+    /**
+     * Get the number of properties of the evaluation
+     * 
+     * @internal
+     * @return array<int>|int|null
+     */
+    public function getProperties()
+    {
+        return $this->properties;
+    }
+
+    /**
+     * Get the number of methods of the evaluation
+     * 
+     * @internal
+     * @return array<int>|int|null
+     */
+    public function getMethods()
+    {
+        return $this->methods;
     }
 
     /**
@@ -284,7 +384,7 @@ class Evaluate
         // Couple timer
         $startTime = hrtime(true);
         $evaluation();
-        $duration = $this->getDuration($startTime);
+        $duration = $this->formatDuration($startTime);
 
         // Get the memory usage
         $consumedMemory = memory_get_peak_usage(true);
@@ -314,7 +414,7 @@ class Evaluate
         $startTime = hrtime(true);
         // Must mutate the object to create new memory allocation
         $tmp = json_decode(json_encode($evaluation));
-        $duration = $this->getDuration($startTime);
+        $duration = $this->formatDuration($startTime);
 
         // This does not include the memory allocated to the variable
         // This is assumed redundant as we are only concerned with memory
@@ -370,7 +470,7 @@ class Evaluate
      * @param float $startTime in nanoseconds
      * @return float
      */
-    protected function getDuration($startTime)
+    protected function formatDuration($startTime)
     {
         return round((hrtime(true) - $startTime) / 1e6, 3);
     }
