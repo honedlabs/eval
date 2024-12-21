@@ -27,63 +27,63 @@ class Evaluate
 
     /**
      * Display memory consumption
-     * 
+     *
      * @var int
      */
     const Memory = 1;
 
     /**
      * Display execution time
-     * 
+     *
      * @var int
      */
     const Time = 2;
 
     /**
      * Display execution cost
-     * 
+     *
      * @var int
      */
     const Cost = 4;
 
     /**
      * Display class properties and methods count
-     * 
+     *
      * @var int
      */
     const Object = 8;
 
     /**
      * Display basic metrics
-     * 
+     *
      * @var int
      */
     const Basic = self::Memory | self::Time | self::Cost;
 
     /**
      * Display all metrics
-     * 
+     *
      * @var int
      */
     const All = self::Memory | self::Time | self::Cost | self::Object;
 
     /**
      * Code to be benchmarked
-     * 
+     *
      * @var array<int, \Closure|object|array|callable>
      */
     protected $evaluations = [];
 
     /**
      * The metrics to be used for this evaluation
-     * 
+     *
      * @var int
      */
     protected $metrics = self::Memory | self::Time | self::Cost;
 
     /**
      * Number of times to execute the evaluation
-     * 
+     *
      * @var int
      */
     protected $times = 5;
@@ -148,11 +148,11 @@ class Evaluate
 
     /**
      * Create a new evaluation instance
-     * 
-     * @param array<int, \Closure|object|array|callable> $evaluations
-     * @param int $metrics
-     * @param string|null $name
-     * @param int $times
+     *
+     * @param  array<int, \Closure|object|array|callable>  $evaluations
+     * @param  int  $metrics
+     * @param  string|null  $name
+     * @param  int  $times
      */
     public static function measure($evaluations = [], $metrics = self::Basic, $name = null, $times = 5)
     {
@@ -310,13 +310,14 @@ class Evaluate
 
     /**
      * Evaluate the performance of the provided evaluations
-     * 
+     *
      * @internal
      */
     protected function evaluate()
     {
         if ($this->assessApplication()) {
             $this->evaluateApplication();
+
             return;
         }
 
@@ -350,7 +351,7 @@ class Evaluate
 
     /**
      * Evaluate the performance of the application
-     * 
+     *
      * @internal
      */
     protected function evaluateApplication()
@@ -366,7 +367,7 @@ class Evaluate
 
     /**
      * Evaluate the performance of a given callable
-     * 
+     *
      * @internal
      * @return array<string, int|float>
      */
@@ -399,7 +400,7 @@ class Evaluate
 
     /**
      * Evaluate the memory, time, properties, methods and count of a given data type
-     * 
+     *
      * @internal
      * @return array<string, int|float>
      */
@@ -436,7 +437,8 @@ class Evaluate
     }
 
     /**
-     * Evaluate the 
+     * Evaluate the
+     *
      * @internal
      * @param object|array $evaluation
      * @return array<string, int>
@@ -488,8 +490,9 @@ class Evaluate
 
     /**
      * Formatting of the table results
-     * 
+     *
      * @internal
+     *
      * @return string
      */
     protected function print()
