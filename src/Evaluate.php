@@ -2,18 +2,18 @@
 
 namespace Conquest\Evaluate;
 
-use Closure;
-use Traversable;
-use ReflectionClass;
 use BadMethodCallException;
+use Closure;
+use Conquest\Core\Concerns\HasName;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
-use Conquest\Core\Concerns\HasName;
 use Illuminate\Support\Facades\Log;
+use ReflectionClass;
+use Traversable;
 
 /**
  * Measure the performance of your code.
- * 
+ *
  * @method static void dd(array|Closure|object|array[] $evaluations, int $metrics = self::Basic, string|null $name = null, int $times = 5)
  * @method static void log(array|Closure|object|array[] $evaluations, int $metrics = self::Basic, string|null $name = null, int $times = 5)
  * @method static void dump(array|Closure|object|array[] $evaluations, int $metrics = self::Basic, string|null $name = null, int $times = 5)
@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\Log;
  * @method void log(array|Closure|object|array[] $evaluations, int $metrics = self::Basic, string|null $name = null, int $times = 5)
  * @method void dump(array|Closure|object|array[] $evaluations, int $metrics = self::Basic, string|null $name = null, int $times = 5)
  */
-class Evaluate 
+class Evaluate
 {
     use HasName;
 
@@ -90,55 +90,52 @@ class Evaluate
 
     /**
      * The computed memory usage in MB
-     * 
+     *
      * @var float|array<int, float>|null
      */
     protected $memory = null;
 
     /**
      * The computed execution time in ms
-     * 
+     *
      * @var float|array<int, float>|null
      */
     protected $duration = null;
 
     /**
      * The number of properties
-     * 
+     *
      * @var array<int, int>|null
      */
     protected $properties = null;
 
     /**
      * The number of methods
-     * 
+     *
      * @var array<int, int>|null
      */
     protected $methods = null;
 
     /**
      * The count of the number of items
-     * 
+     *
      * @var array<int, int>|null
      */
     protected $count = null;
 
     /**
      * Whether the case has had a terminating method called
-     * 
+     *
      * @var bool
      */
     protected $terminated = false;
 
     /**
      * Create a new evaluation instance
-     * 
-     * @param array<\Closure|object|array|callable> $evaluations
-     * @param int $metrics
-     * @param string|null $name
-     * @param int $times
+     *
+     * @param  array<\Closure|object|array|callable>  $evaluations
      */
-    public function __construct($evaluations = [], int $metrics = self::Basic, string $name = null, int $times = 5)
+    public function __construct($evaluations = [], int $metrics = self::Basic, ?string $name = null, int $times = 5)
     {
         $this->evaluations = $evaluations;
         $this->metrics = $metrics;
@@ -161,20 +158,19 @@ class Evaluate
 
     /**
      * Set the number of times to execute the evaluation
-     * 
-     * @param int $times
+     *
      * @return $this
      */
     public function times(int $times)
     {
         $this->times = $times;
+
         return $this;
     }
 
     /**
      * Set the metrics to be used for this evaluation
-     * 
-     * @param int $metrics
+     *
      * @return $this
      */
     public function metrics(int $metrics)
@@ -192,12 +188,12 @@ class Evaluate
 
     /**
      * Ensure that the results are printed when destructing if not already terminated
-     * 
+     *
      * @internal
      */
     public function __destruct()
     {
-        if (!$this->terminated) {
+        if (! $this->terminated) {
             dd($this->print());
         }
     }
@@ -208,13 +204,15 @@ class Evaluate
     public static function __callStatic($name, $arguments)
     {
         $evaluator = static::measure(...$arguments);
+
         return $evaluator->handle($name);
     }
 
     /**
      * Handle the evaluation results
-     * 
-     * @param string $name
+     *
+     * @param  string  $name
+     *
      * @internal
      */
     protected function handle($name)
@@ -231,21 +229,24 @@ class Evaluate
 
     /**
      * Forcefully terminate the evaluation, reserved for testing purposes generally
-     * 
+     *
      * @internal
+     *
      * @return $this
      */
     public function terminate()
     {
         $this->evaluate();
         $this->terminated = true;
+
         return $this;
     }
 
     /**
      * Get the memory usage(s) of the evaluation
-     * 
+     *
      * @internal
+     *
      * @return array<int|float>|int|float|null
      */
     public function getMemory()
@@ -255,8 +256,9 @@ class Evaluate
 
     /**
      * Get the execution time(s) of the evaluation
-     * 
+     *
      * @internal
+     *
      * @return array<int|float>|int|float|null
      */
     public function getDuration()
@@ -266,8 +268,9 @@ class Evaluate
 
     /**
      * Get the execution cost of the evaluation
-     * 
+     *
      * @internal
+     *
      * @return array<int|float>|int|float|null
      */
     public function getCost()
@@ -277,8 +280,9 @@ class Evaluate
 
     /**
      * Get the count of the evaluation
-     * 
+     *
      * @internal
+     *
      * @return array<int>|int|null
      */
     public function getCount()
@@ -288,8 +292,9 @@ class Evaluate
 
     /**
      * Get the number of properties of the evaluation
-     * 
+     *
      * @internal
+     *
      * @return array<int>|int|null
      */
     public function getProperties()
@@ -299,8 +304,9 @@ class Evaluate
 
     /**
      * Get the number of methods of the evaluation
-     * 
+     *
      * @internal
+     *
      * @return array<int>|int|null
      */
     public function getMethods()
@@ -321,23 +327,24 @@ class Evaluate
             return;
         }
 
-        collect(Arr::wrap($this->evaluations))->map(fn ($evaluation) => 
-            collect(range(1, $this->times))->map(fn () => is_callable($evaluation) ? 
-                $this->evaluateCallable($evaluation) 
+        collect(Arr::wrap($this->evaluations))->map(fn ($evaluation) => collect(range(1, $this->times))->map(fn () => is_callable($evaluation) ?
+                $this->evaluateCallable($evaluation)
                 : $this->evaluateDataType($evaluation)
-            )
+        )
         )->map(function (Collection $eval) {
             $summed = $eval->reduce(function ($carry, $item) {
                 foreach ($item as $key => $value) {
                     if (is_null($value)) {
-                    $carry[$key] = null;
-                    continue;
+                        $carry[$key] = null;
+
+                        continue;
+                    }
+                    if (! isset($carry[$key])) {
+                        $carry[$key] = 0;
+                    }
+                    $carry[$key] += $value;
                 }
-                if (!isset($carry[$key])) {
-                    $carry[$key] = 0;
-                }
-                $carry[$key] += $value;
-                }
+
                 return $carry;
             }, []);
 
@@ -369,12 +376,13 @@ class Evaluate
      * Evaluate the performance of a given callable
      *
      * @internal
+     *
      * @return array<string, int|float>
      */
     protected function evaluateCallable($evaluation)
     {
         gc_collect_cycles();
-        
+
         // Reset the peak memory usage to zero in case a previous evaluation has left it high
         memory_reset_peak_usage();
         $startMemory = memory_get_peak_usage(true);
@@ -389,7 +397,7 @@ class Evaluate
 
         // Get the memory usage
         $consumedMemory = memory_get_peak_usage(true);
-        
+
         gc_enable();
 
         return [
@@ -402,6 +410,7 @@ class Evaluate
      * Evaluate the memory, time, properties, methods and count of a given data type
      *
      * @internal
+     *
      * @return array<string, int|float>
      */
     protected function evaluateDataType($evaluation)
@@ -411,7 +420,7 @@ class Evaluate
         // Timing is done in nanoseconds
         $startMemory = memory_get_usage(true);
 
-        // Couple timer 
+        // Couple timer
         $startTime = hrtime(true);
         // Must mutate the object to create new memory allocation
         $tmp = json_decode(json_encode($evaluation));
@@ -440,7 +449,8 @@ class Evaluate
      * Evaluate the
      *
      * @internal
-     * @param object|array $evaluation
+     *
+     * @param  object|array  $evaluation
      * @return array<string, int>
      */
     protected function evaluateReflection($evaluation)
@@ -452,11 +462,12 @@ class Evaluate
             'methods' => count($reflection->getMethods()),
         ];
     }
-    
+
     /**
      * Determine if the evaluation is application layer
-     * 
+     *
      * @internal
+     *
      * @return bool
      */
     protected function assessApplication()
@@ -466,9 +477,10 @@ class Evaluate
 
     /**
      * Get the memory usage of the evaluation in MB
-     * 
+     *
      * @internal
-     * @param int $memory in bytes
+     *
+     * @param  int  $memory  in bytes
      * @return float
      */
     protected function formatMemory($memory)
@@ -478,9 +490,10 @@ class Evaluate
 
     /**
      * Get the duration of the evaluation in milliseconds
-     * 
+     *
      * @internal
-     * @param float $startTime in nanoseconds
+     *
+     * @param  float  $startTime  in nanoseconds
      * @return float
      */
     protected function formatDuration($startTime)

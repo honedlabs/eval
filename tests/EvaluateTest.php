@@ -13,8 +13,10 @@ it('evaluates the application', function () {
 });
 
 it('evaluates an object', function () {
-    $object = new class {
+    $object = new class
+    {
         public array $range;
+
         public function __construct()
         {
             $this->range = range(1, 10);
