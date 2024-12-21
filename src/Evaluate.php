@@ -133,12 +133,12 @@ class Evaluate
     /**
      * Create a new evaluation instance
      * 
-     * @param array<int, \Closure|object|array|callable> $evaluations
+     * @param array<\Closure|object|array|callable> $evaluations
      * @param int $metrics
      * @param string|null $name
      * @param int $times
      */
-    public function __construct($evaluations = [], $metrics = self::Basic, $name = null, $times = 5)
+    public function __construct($evaluations = [], int $metrics = self::Basic, string $name = null, int $times = 5)
     {
         $this->evaluations = $evaluations;
         $this->metrics = $metrics;
@@ -315,7 +315,7 @@ class Evaluate
      */
     protected function evaluate()
     {
-        if (empty($this->evaluations)) {
+        if ($this->assessApplication()) {
             $this->evaluateApplication();
             return;
         }
@@ -449,6 +449,17 @@ class Evaluate
             'properties' => count($reflection->getProperties()),
             'methods' => count($reflection->getMethods()),
         ];
+    }
+    
+    /**
+     * Determine if the evaluation is application layer
+     * 
+     * @internal
+     * @return bool
+     */
+    protected function assessApplication()
+    {
+        return empty($this->evaluations);
     }
 
     /**
